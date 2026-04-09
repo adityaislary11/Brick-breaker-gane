@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Brick Breaker Ultimate</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-neon: #000000;
+            --primary: #38bdf8;
+            --accent: #f43f5e;
+            --text: #f8fafc;
+            --gold: #fbbf24;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            height: 85vh;
+            border: 2px solid #334155;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .hidden { display: none !important; }
+
+        .menu-content { text-align: center; width: 80%; }
+
+        h1 { font-size: 2rem; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
+
+        .high-score-label { color: var(--gold); font-weight: bold; margin-bottom: 20px; font-size: 1.1rem; }
+
+        .control-group { margin: 12px 0; }
+        label { display: block; margin-bottom: 5px; font-size: 0.8rem; color: #94a3b8; }
+        
+        select, input {
+            padding: 10px;
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: white;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        button:active { transform: scale(0.95); }
+
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-around;
+            pointer-events: none;
+            background: rgba(0,0,0,0.5);
+            font-size: 0.8rem;
+            font-weight: bold;
+            border-bottom: 1px solid #334155;
+        }
+
+        .hud span { color: #cbd5e1; }
+        .hud b { color: var(--primary); }
+        #high-score-hud { color: var(--gold); }
+
+        footer { margin-top: 20px; font-size: 0.7rem; color: #64748b; }
+
+        .neon-theme { --primary: #00ffcc; --accent: #ff00ff; background-color: #000; }
+        
+        #new-record-msg { color: #10b981; font-weight: bold; margin: 10px 0; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="hud" id="hud">
+            <span>Score: <b id="score-val">0</b></span>
+            <span>Best: <b id="high-score-hud">0</b></span>
+            <span>Lives: <b id="lives-val">3</b></span>
+            <span>Lvl: <b id="level-val">1</b></span>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="main-menu" class="overlay">
+            <div class="menu-content">
+                <h1>Brick Breaker</h1>
+                <div class="high-score-label">ALL-TIME BEST: <span id="high-score-menu">0</span></div>
+                
+                <div class="control-group">
+                    <label>Start Level</label>
+                    <input type="number" id="start-level" value="1" min="1">
+                </div>
+                <div class="control-group">
+                    <label>Difficulty</label>
+                    <select id="difficulty">
+                        <option value="0.8">Easy</option>
+                        <option value="1" selected>Normal</option>
+                        <option value="1.3">Hard</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Theme</label>
+                    <select id="theme-select">
+                        <option value="dark">Dark Slate</option>
+                        <option value="neon">Cyber Neon</option>
+                    </select>
+                </div>
+                <button id="start-btn">START GAME</button>
+                <footer>Made by Aditya Islary™</footer>
+            </div>
+        </div>
+
+        <div id="game-over" class="overlay hidden">
+            <h1 id="over-title">GAME OVER</h1>
+            <p id="new-record-msg" class="hidden">NEW HIGH SCORE!</p>
+            <p>Final Score: <b id="final-score" style="color:var(--primary)">0</b></p>
+            <p>Best: <b id="high-score-over" style="color:var(--gold)">0</b></p>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const hud = {
+            score: document.getElementById('score-val'),
+            lives: document.getElementById('lives-val'),
+            level: document.getElementById('level-val'),
+            best: document.getElementById('high-score-hud')
+        };
+
+        let audioCtx;
+        function playSound(freq, type = 'sine', duration = 0.1) {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        const Game = {
+            state: 'MENU',
+            score: 0,
+            highScore: 0,
+            lives: 3,
+            level: 1,
+            difficulty: 1,
+            balls: [],
+            bricks: [],
+            particles: [],
+            paddle: { x: 0, y: 0, w: 80, h: 12 }
+        };
+
+        function resize() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            Game.paddle.y = canvas.height - 40;
+            Game.paddle.x = canvas.width / 2 - Game.paddle.w / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function loadData() {
+            const savedHigh = localStorage.getItem('bb_highscore');
+            const savedProg = localStorage.getItem('bb_save');
+            if (savedHigh) {
+                Game.highScore = parseInt(savedHigh);
+                updateScoreUI();
+            }
+            if (savedProg) {
+                const data = JSON.parse(savedProg);
+                document.getElementById('start-level').value = data.lvl;
+            }
+        }
+
+        function updateScoreUI() {
+            document.getElementById('high-score-menu').innerText = Game.highScore;
+            document.getElementById('high-score-hud').innerText = Game.highScore;
+            document.getElementById('high-score-over').innerText = Game.highScore;
+        }
+
+        function initLevel(lvl) {
+            Game.bricks = [];
+            const rows = 4 + Math.min(Math.floor(lvl / 2), 6);
+            const cols = 7;
+            const padding = 5;
+            const w = (canvas.width - (cols + 1) * padding) / cols;
+            const h = 20;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (Math.random() > 0.05) {
+                        Game.bricks.push({
+                            x: c * (w + padding) + padding,
+                            y: r * (h + padding) + padding + 60,
+                            w: w, h: h,
+                            hits: 1,
+                            color: `hsl(${(lvl * 45 + r * 25) % 360}, 70%, 55%)`
+                        });
+                    }
+                }
+            }
+        }
+
+        function createBall() {
+            const speed = (4 + Game.level * 0.2) * Game.difficulty;
+            return { x: Game.paddle.x + Game.paddle.w / 2, y: Game.paddle.y - 10, dx: (Math.random() - 0.5) * speed, dy: -speed, r: 6 };
+        }
+
+        function spawnParticles(x, y, color) {
+            for (let i = 0; i < 6; i++) {
+                Game.particles.push({ x, y, dx: (Math.random()-0.5)*4, dy: (Math.random()-0.5)*4, life: 1.0, color });
+            }
+        }
+
+        function update() {
+            if (Game.state !== 'PLAYING') return;
+
+            Game.balls.forEach((b, index) => {
+                b.x += b.dx; b.y += b.dy;
+                if (b.x + b.r > canvas.width || b.x - b.r < 0) { b.dx *= -1; playSound(200); }
+                if (b.y - b.r < 0) { b.dy *= -1; playSound(220); }
+
+                if (b.y + b.r > Game.paddle.y && b.y - b.r < Game.paddle.y + Game.paddle.h && b.x > Game.paddle.x && b.x < Game.paddle.x + Game.paddle.w) {
+                    let hitPos = (b.x - (Game.paddle.x + Game.paddle.w / 2)) / (Game.paddle.w / 2);
+                    let speed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+                    b.dx = hitPos * speed * 0.8;
+                    b.dy = -Math.sqrt(Math.abs(speed * speed - b.dx * b.dx));
+                    playSound(300, 'square');
+                }
+
+                Game.bricks.forEach((brick, bi) => {
+                    if (b.x > brick.x && b.x < brick.x + brick.w && b.y > brick.y && b.y < brick.y + brick.h) {
+                        b.dy *= -1;
+                        spawnParticles(brick.x + brick.w/2, brick.y + brick.h/2, brick.color);
+                        playSound(450);
+                        Game.bricks.splice(bi, 1);
+                        Game.score += 10;
+                    }
+                });
+
+                if (b.y > canvas.height) Game.balls.splice(index, 1);
+            });
+
+            if (Game.balls.length === 0) {
+                Game.lives--;
+                if (Game.lives <= 0) endGame();
+                else Game.balls.push(createBall());
+            }
+
+            if (Game.bricks.length === 0) {
+                Game.level++;
+                localStorage.setItem('bb_save', JSON.stringify({lvl: Game.level}));
+                initLevel(Game.level);
+                Game.balls = [createBall()];
+            }
+
+            Game.particles.forEach((p, i) => {
+                p.x += p.dx; p.y += p.dy; p.life -= 0.03;
+                if (p.life <= 0) Game.particles.splice(i, 1);
+            });
+
+            hud.score.innerText = Game.score;
+            hud.lives.innerText = Game.lives;
+            hud.level.innerText = Game.level;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#38bdf8";
+            ctx.fillRect(Game.paddle.x, Game.paddle.y, Game.paddle.w, Game.paddle.h);
+            Game.bricks.forEach(br => { ctx.fillStyle = br.color; ctx.fillRect(br.x, br.y, br.w, br.h); });
+            Game.balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = "#fff"; ctx.fill(); });
+            Game.particles.forEach(p => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 3, 3); });
+            ctx.globalAlpha = 1;
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        function endGame() {
+            Game.state = 'OVER';
+            document.getElementById('final-score').innerText = Game.score;
+            if (Game.score > Game.highScore) {
+                Game.highScore = Game.score;
+                localStorage.setItem('bb_highscore', Game.highScore);
+                document.getElementById('new-record-msg').classList.remove('hidden');
+            } else {
+                document.getElementById('new-record-msg').classList.add('hidden');
+            }
+            updateScoreUI();
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+        canvas.addEventListener('pointermove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            Game.paddle.x = (e.clientX - rect.left) - Game.paddle.w / 2;
+            if (Game.paddle.x < 0) Game.paddle.x = 0;
+            if (Game.paddle.x + Game.paddle.w > canvas.width) Game.paddle.x = canvas.width - Game.paddle.w;
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            Game.level = parseInt(document.getElementById('start-level').value) || 1;
+            Game.difficulty = parseFloat(document.getElementById('difficulty').value);
+            if (document.getElementById('theme-select').value === 'neon') document.body.classList.add('neon-theme');
+            else document.body.classList.remove('neon-theme');
+            document.getElementById('main-menu').classList.add('hidden');
+            Game.score = 0; Game.lives = 3; Game.state = 'PLAYING';
+            initLevel(Game.level); Game.balls = [createBall()];
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('game-over').classList.add('hidden');
+            document.getElementById('main-menu').classList.remove('hidden');
+        });
+
+        loadData();
+        draw();
+    </script>
+</body>
+  </html>
+                      
